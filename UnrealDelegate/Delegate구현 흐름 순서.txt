@@ -1,0 +1,64 @@
+Object 타입으로 CourseInfo 만든다.
+
+델리게이트 타입 DECLARE_MULTICAST_DELEGATE_TwoParams(FCourseInfoOnChangedSignature, const FString&, const FString&);
+
+여러명에게 CAST , 2개 인자 받음
+
+
+
+FCourseInfoOnChangedSignature OnChanged;
+
+void ChangeCourseInfo(const FString& InSchoolName, const FString& InNewContents);
+
+FString Contents;
+
+
+
+---- cpp
+UCourseInfo::UCourseInfo()
+{
+	Contents = TEXT("기존 학사 정보");
+}
+void UCourseInfo::ChangeCourseInfo(const FString& InSchoolName, const FString& InNewContents)
+{
+	Contents = InNewContents;
+
+	UE_LOG(LogTemp, Log, TEXT("[CourseInfo] 학사 정보가 변경되어 알림을 발송합니다."));
+	OnChanged.Broadcast(InSchoolName, Contents);
+}
+
+
+Student.h 
+
+void GetNotification(const FString& School, const FString& NewCourseInfo); 선언
+
+Student.cpp
+
+void UStudent::GetNotification(const FString& School, const FString& NewCourseInfo)
+{
+	UE_LOG(LogTemp, Log, TEXT("[Student] %s 님이 %s 로부터 받은 메시지 : %s"), *Name, *School, *NewCourseInfo);
+}
+
+
+MyGameInstance.h
+
+TObjectPtr<class UCourseInfo> CourseInfo;
+
+MyGameInstance.cpp
+
+CourseInfo = NewObject<UCourseInfo>(this);
+
+UE_LOG(LogTemp, Log, TEXT("========================"));
+
+UStudent* Student1 = NewObject<UStudent>();
+Student1->SetName(TEXT("학생1"));
+UStudent* Student2 = NewObject<UStudent>();
+Student2->SetName(TEXT("학생2"));
+UStudent* Student3 = NewObject<UStudent>();
+Student3->SetName(TEXT("학생3"));
+
+CourseInfo->OnChanged.AddUObject(Student1, &UStudent::GetNotification);
+CourseInfo->OnChanged.AddUObject(Student2, &UStudent::GetNotification);
+CourseInfo->OnChanged.AddUObject(Student3, &UStudent::GetNotification);
+
+CourseInfo->ChangeCourseInfo(SchoolName, TEXT("변경된 학사 정보"));
