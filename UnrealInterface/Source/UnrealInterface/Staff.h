@@ -3,15 +3,18 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "MyGameInstance.h"
-#include "MyMyGameInstance2.generated.h"
+#include "Person.h"
+#include "Staff.generated.h"
 
 /**
  * 
  */
 UCLASS()
-class UNREALINTERFACE_API UMyMyGameInstance2 : public UMyGameInstance
+class UNREALINTERFACE_API UStaff : public UPerson
 {
 	GENERATED_BODY()
+
+public:
+	UStaff();
 	
 };
