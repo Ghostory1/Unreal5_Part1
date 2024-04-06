@@ -4,6 +4,10 @@
 #include "MyGameInstance.h"
 #include "Student.h"
 #include "JsonObjectConverter.h"
+#include "UObject/SavePackage.h"
+
+const FString UMyGameInstance::PackageName = TEXT("/Game/Student");
+const FString UMyGameInstance::AssetName = TEXT("TopStudent");
 
 void PrintStudentInfo(const UStudent* InStudent, const FString& InTag)
 {
@@ -11,7 +15,13 @@ void PrintStudentInfo(const UStudent* InStudent, const FString& InTag)
 }
 UMyGameInstance::UMyGameInstance()
 {
-
+	//생성자에서 애셋을 로딩할 경우 게임이 시작하기전에 미리 메모리에 다 올라와 있어야한다.
+	const FString TopSoftObjectPath = FString::Printf(TEXT("%s.%s"), *PackageName, *AssetName);
+	static ConstructorHelpers::FObjectFinder<UStudent> UASSET_TopStudent(*TopSoftObjectPath);
+	if (UASSET_TopStudent.Succeeded())
+	{
+		PrintStudentInfo(UASSET_TopStudent.Object, TEXT("Constructor Asset"));
+	}
 }
 
 void UMyGameInstance::Init()
@@ -137,4 +147,105 @@ void UMyGameInstance::Init()
 			}
 		}
 	}
+
+	//패키지를 사용한 에셋 저장
+	SaveStudentPackage();
+	//LoadStudentPackage();
+	//LoadStudentObject();
+
+	//비동기 방식
+	
+	//애셋의 오브젝트 경로
+	const FString TopSoftObjectPath = FString::Printf(TEXT("%s.%s"), *PackageName, *AssetName);
+	Handle = StreamableManager.RequestAsyncLoad(TopSoftObjectPath,
+		[&]() // [&] : 핸들을 참조해야되기때문에 레퍼런스를 가져옴
+		{
+			if (Handle.IsValid() && Handle->HasLoadCompleted())
+			{
+				UStudent* TopStudent = Cast<UStudent>(Handle->GetLoadedAsset());
+				if (TopStudent)
+				{
+					PrintStudentInfo(TopStudent, TEXT("AsyncLoad"));
+
+					//다 쓴 핸들 닫아주기
+					Handle->ReleaseHandle();
+					Handle.Reset();
+				}
+			}
+		}
+	);
+}
+
+void UMyGameInstance::SaveStudentPackage() const
+{
+	//이미 패키지가 존재한다면 다 로딩하고 저장해주는게 좋다.
+	UPackage* StudentPackage = ::LoadPackage(nullptr, *PackageName, LOAD_None);
+	if (StudentPackage)
+	{
+		StudentPackage->FullyLoad();
+	}
+
+	//패키지를 사용하기위하여 패키지와 패키지를 담고있는 대표 에셋을 지정
+	
+	//1. 패키지 생성코드
+	StudentPackage = CreatePackage(*PackageName);
+	//2. 패키지 저장 옵션
+	EObjectFlags ObjectFlag = RF_Public | RF_Standalone;
+
+	//3.패키지에 어떤 내용을 담을지 
+	UStudent* TopStudent = NewObject<UStudent>(StudentPackage, UStudent::StaticClass(),*AssetName, ObjectFlag);
+	TopStudent->SetName(TEXT("이승한"));
+	TopStudent->SetOrder(35);
+
+	const int32 NumfSubs = 10;
+	for (int32 ix = 1; ix <= NumfSubs; ++ix)
+	{
+		FString SubObjectName = FString::Printf(TEXT("Student%d"), ix);
+		UStudent* SubStudent = NewObject<UStudent>(TopStudent, UStudent::StaticClass(), *SubObjectName, ObjectFlag);
+		SubStudent->SetName(FString::Printf(TEXT("학생%d"), ix));
+		SubStudent->SetOrder(ix);
+	}
+
+	//4. 패키지에 저장될 경로를 지정
+	//5. 패키지에 확장자 부여
+	//FPackageName::GetAssetPackageExtension() : 언리얼 엔진에서 지정한 uasset이라는 확장자를 의미
+	//우리가 앞서 지정한 PackageName ("/Game/Student") 를 바탕으로 현재 프로젝트의 Content폴더(현재는 Game)를 지정하게 하고 그 다음에 패키지의 Student가 파일 이름이 된다.
+	const FString PackageFileName = FPackageName::LongPackageNameToFilename(PackageName, FPackageName::GetAssetPackageExtension());
+
+	//6. 저장
+	FSavePackageArgs SaveArgs;
+	SaveArgs.TopLevelFlags = ObjectFlag;
+
+	if (UPackage::SavePackage(StudentPackage, nullptr, *PackageFileName, SaveArgs))
+	{
+		UE_LOG(LogTemp, Log, TEXT("패키지가 성공적으로 저장되었습니다."));
+	}
+	
+
+}
+
+void UMyGameInstance::LoadStudentPackage() const
+{
+	UPackage* StudentPackage = ::LoadPackage(nullptr, *PackageName, LOAD_None);
+	if (nullptr == StudentPackage)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("패키지를 찾을 수 없습니다."));
+		return;
+	}
+
+	StudentPackage->FullyLoad();
+
+	//로딩된 패키지에서 AssetName을 찾아줘서 TopStudent에 저장
+	UStudent* TopStudent = FindObject<UStudent>(StudentPackage, *AssetName);
+	PrintStudentInfo(TopStudent, TEXT("FindObject Asset"));
+}
+
+void UMyGameInstance::LoadStudentObject() const
+{
+	//애셋의 오브젝트 경로
+	const FString TopSoftObjectPath = FString::Printf(TEXT("%s.%s"), *PackageName, *AssetName);
+
+	//이때 패키지를 로딩하지않기에 nullptr 지정
+	UStudent* TopStudent = LoadObject<UStudent>(nullptr, *TopSoftObjectPath);
+	PrintStudentInfo(TopStudent, TEXT("LoadObject Asset"));
 }
